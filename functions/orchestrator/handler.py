@@ -10,6 +10,7 @@ from datetime import date
 from shared.models import KnowledgeGraph, NewsItem
 from shared.priority import update_priorities
 from shared.storage import load_graph, save_digest, save_graph
+from shared.seen import SeenStore
 from graph.seed import build_initial_graph
 from shared.deferred import apply_deferred_to_pipeline
 from shared.versioning import save_snapshot, compute_diff
@@ -27,25 +28,28 @@ USE_LLM            = os.environ.get("USE_LLM",        "true").lower() == "true"
 USE_FACT_CHECK     = os.environ.get("USE_FACT_CHECK",  "true").lower() == "true"
 
 
-def _collect_news(graph):
+def _collect_news(graph, seen: SeenStore):
     reset_registry()
     news_by_entity: dict[str, list[NewsItem]] = {}
-    seen_urls:      set[str]                  = set()
     mentioned_ids:  set[str]                  = set()
     total                                     = 0
+    seen_this_run:  set[str]                  = set()
 
     for entity in graph.get_entities_by_priority():
         if total >= MAX_NEWS_IN_DIGEST:
             break
         items    = search_entity_news(entity)
-        unique   = [i for i in items if i.url not in seen_urls]
-        seen_urls.update(i.url for i in unique)
+        unique   = [i for i in items if not seen.is_seen(i.url) and i.url not in seen_this_run]
+        seen_this_run.update(i.url for i in unique)
         remaining                 = MAX_NEWS_IN_DIGEST - total
         batch                     = unique[:remaining]
         news_by_entity[entity.id] = batch
         total                    += len(batch)
         if batch:
             mentioned_ids.add(entity.id)
+
+    today = date.today().isoformat()
+    seen.mark_many(seen_this_run, today)
 
     return news_by_entity, mentioned_ids
 
@@ -85,7 +89,9 @@ def run_pipeline() -> dict:
         graph.entities          = update_priorities(graph.entities)
 
         # 2. Собрать новости
-        news_by_entity, mentioned_ids = _collect_news(graph)
+        seen = SeenStore(os.path.join(os.environ.get("DATA_DIR", "/data"), "seen_urls.db"))
+        news_by_entity, mentioned_ids = _collect_news(graph, seen)
+        seen.close()
         all_fresh            = [i for items in news_by_entity.values() for i in items]
         metrics.news_fresh   = len(all_fresh)
         metrics.source_stats = get_registry().get_summary()

@@ -39,6 +39,8 @@ def apply_deferred_to_pipeline(graph, fresh_news, max_total):
     if should_use_deferred(fresh_count) and graph.deferred_news:
         needed = min(max_total - fresh_count, len(graph.deferred_news))
         graph, extra = pop_deferred(graph, needed)
+        fresh_urls = {n.url for n in fresh_news}
+        extra = [n for n in extra if n.url not in fresh_urls]
         logger.info("Pipeline: %d fresh + %d deferred = %d total", fresh_count, len(extra), fresh_count+len(extra))
         return graph, fresh_news + extra
     if fresh_count > max_total:
