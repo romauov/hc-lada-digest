@@ -8,3 +8,14 @@ services:
       - DATA_DIR=/data
       - TZ=Europe/Samara
     restart: unless-stopped
+
+  bot:
+    build: .
+    volumes:
+      - ./data:/data
+    env_file: .env
+    environment:
+      - DATA_DIR=/data
+      - TZ=Europe/Samara
+    command: ["python", "-m", "functions.tg_sender.bot"]
+    restart: unless-stopped

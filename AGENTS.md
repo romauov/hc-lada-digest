@@ -29,6 +29,7 @@ python -m pytest tests/ -v
 - **Модели**: `openai/gpt-4o-mini` для анализа/классификации, `openai/gpt-4o` для дайджеста.
 - **Fallback**: при ошибке основной модели — `qwen/qwen2.5-72b-instruct`.
 - **Telegram**: лимит 4096 символов на сообщение, авто-сплит по строкам.
+- **Бот** (`functions/tg_sender/bot.py`): long-polling, команды `/start`, `/graph`, `/logs`.
 - **Deferred news**: TTL 3 дня; активируются если свежих новостей < 3.
 - **SourceRegistry**: синглтон, сбрасывать через `reset_registry()` перед каждым тестом.
 - **Тесты**: LLM вызовы мокируются `@patch`. Не требуют Docker/токенов.

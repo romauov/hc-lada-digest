@@ -184,5 +184,15 @@ def handler(event: dict, context) -> dict:
 
 
 if __name__ == "__main__":
-    logging.basicConfig(level=logging.INFO)
+    log_dir = os.path.join(os.environ.get("DATA_DIR", "/data"), "logs")
+    log_file = os.path.join(log_dir, f"orchestrator-{date.today().isoformat()}.log")
+    os.makedirs(log_dir, exist_ok=True)
+    root = logging.getLogger()
+    root.setLevel(logging.INFO)
+    fmt = logging.Formatter("%(asctime)s [%(levelname)s] %(name)s: %(message)s")
+    handler = logging.FileHandler(log_file, encoding="utf-8")
+    handler.setFormatter(fmt)
+    root.addHandler(handler)
+    if not root.handlers or not any(isinstance(h, logging.StreamHandler) for h in root.handlers):
+        root.addHandler(logging.StreamHandler())
     print(run_pipeline())
