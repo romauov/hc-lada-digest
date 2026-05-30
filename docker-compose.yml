@@ -6,4 +6,5 @@ services:
     env_file: .env
     environment:
       - DATA_DIR=/data
+      - TZ=Europe/Samara
     restart: unless-stopped
