@@ -4,3 +4,5 @@ __pycache__/
 data/
 .pytest_cache/
 refine_prompt.py
+generate_dialog.sh
+graph/tmp*.json

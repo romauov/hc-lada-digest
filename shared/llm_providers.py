@@ -71,6 +71,12 @@ def _call_openrouter(
                 resp.raise_for_status()
                 data = resp.json()
                 text = data["choices"][0]["message"]["content"]
+                citations = data.get("citations") or data["choices"][0]["message"].get("citations")
+                if citations:
+                    links = []
+                    for i, url in enumerate(citations, 1):
+                        links.append(f'<a href="{url}">{i}</a>')
+                    text = text.strip() + "\n\n<b>Источники:</b>\n" + ", ".join(links)
                 logger.debug("OpenRouter response (%d tokens using %s)",
                              data.get("usage", {}).get("total_tokens", 0), m)
                 if m != model:
