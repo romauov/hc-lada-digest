@@ -126,7 +126,10 @@ def _handle_message(text: str, chat_id: str) -> str | None:
 
     add_history(chat_id, "user", text)
 
-    if classify_need_search(text, history_context(chat_id)):
+    graph = load_graph()
+    entities = graph.entities if graph else None
+
+    if classify_need_search(text, history_context(chat_id), entities):
         logger.info("Search triggered by LLM classifier: %s", text[:80])
         answer = search_and_answer(text, chat_id)
         if answer:
@@ -134,7 +137,6 @@ def _handle_message(text: str, chat_id: str) -> str | None:
             update_graph_from_answer(text, answer)
         return answer
 
-    graph = load_graph()
     if graph:
         answer = answer_from_graph(text, graph, chat_id)
         if answer:
