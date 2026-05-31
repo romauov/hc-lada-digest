@@ -6,6 +6,7 @@ from shared.models import KnowledgeGraph, NewsItem
 from shared.priority import update_priorities
 from shared.storage import load_graph, save_digest, save_graph
 from shared.seen import SeenStore
+from shared.news_store import NewsStore
 from graph.seed import build_initial_graph
 from shared.deferred import apply_deferred_to_pipeline
 from shared.versioning import save_snapshot, compute_diff
@@ -82,7 +83,8 @@ def run_pipeline() -> dict:
         metrics.graph_version = graph.version
         graph.entities = update_priorities(graph.entities)
 
-        seen = SeenStore(os.path.join(os.environ.get("DATA_DIR", "/data"), "seen_urls.db"))
+        data_dir = os.environ.get("DATA_DIR", "/data")
+        seen = SeenStore(os.path.join(data_dir, "seen_urls.db"))
         news_by_entity, mentioned_ids = _collect_news(graph, seen)
         seen.close()
         all_fresh = [i for items in news_by_entity.values() for i in items]
@@ -95,11 +97,17 @@ def run_pipeline() -> dict:
         metrics.news_deferred_out = len(graph.deferred_news)
         metrics.news_total = len(final_news)
 
+        news_store = NewsStore(os.path.join(data_dir, "news.db"))
+
         if not final_news:
             send_digest("", is_empty=True)
             save_graph(graph)
+            news_store.save(final_news)
+            news_store.close()
             send_monitoring_report(metrics)
             return {"status": "ok", "news_count": 0}
+
+        news_store.save(final_news)
 
         save_snapshot(graph, label="before_update")
         graph_before = graph
@@ -124,6 +132,9 @@ def run_pipeline() -> dict:
             except Exception as e:
                 metrics.add_warning(f"graph_updater failed: {e}")
                 analysis_results = [{"item": n, "analysis": {}} for n in final_news]
+
+            enriched = [r["item"] for r in analysis_results]
+            news_store.save(enriched)
 
             diff = compute_diff(graph_before, graph)
             if not diff.is_empty():
@@ -156,6 +167,8 @@ def run_pipeline() -> dict:
         save_digest(digest_text)
 
         send_digest(digest_text)
+
+        news_store.close()
 
     send_monitoring_report(metrics)
     logger.info("=== Pipeline finished: %d news, %d chars, %.1fs ===",
