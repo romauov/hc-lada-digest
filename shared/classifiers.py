@@ -4,7 +4,7 @@ import os
 import re
 from typing import Optional
 
-from shared.openrouter import _call_llm
+from shared.llm_providers import _call_llm
 
 logger = logging.getLogger(__name__)
 
