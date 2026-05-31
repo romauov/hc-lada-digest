@@ -136,26 +136,13 @@ def send_monitoring_report(metrics: PipelineMetrics) -> None:
     Не бросает исключений — мониторинг не должен ронять основной процесс.
     """
     try:
-        import requests
+        from shared.tg_send import send_message as tg_send
         token    = os.environ.get("TG_BOT_TOKEN", "")
         admin_id = os.environ.get("TG_ADMIN_ID", "")
         if not token or not admin_id:
             logger.debug("Monitoring report skipped: TG_ADMIN_ID not set")
             return
-
-        report = metrics.to_tg_report()
-        resp   = requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id":                  admin_id,
-                "text":                     report,
-                "parse_mode":               "HTML",
-                "disable_web_page_preview": True,
-            },
-            timeout=10,
-        )
-        if not resp.ok:
-            logger.warning("Monitoring report send failed: %s", resp.status_code)
+        tg_send(token, admin_id, metrics.to_tg_report())
     except Exception as e:
         logger.warning("Monitoring report error: %s", e)
 
@@ -163,19 +150,11 @@ def send_monitoring_report(metrics: PipelineMetrics) -> None:
 def send_critical_alert(message: str) -> None:
     """Немедленный алерт админу при критической ошибке."""
     try:
-        import requests
+        from shared.tg_send import send_message as tg_send
         token    = os.environ.get("TG_BOT_TOKEN", "")
         admin_id = os.environ.get("TG_ADMIN_ID", "")
         if not token or not admin_id:
             return
-        requests.post(
-            f"https://api.telegram.org/bot{token}/sendMessage",
-            json={
-                "chat_id":    admin_id,
-                "text":       f"🚨 <b>Критическая ошибка</b>\n{message}",
-                "parse_mode": "HTML",
-            },
-            timeout=10,
-        )
+        tg_send(token, admin_id, f"🚨 <b>Критическая ошибка</b>\n{message}")
     except Exception as e:
         logger.warning("Critical alert send failed: %s", e)

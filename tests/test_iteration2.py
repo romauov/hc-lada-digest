@@ -9,13 +9,13 @@ from datetime import date
 from unittest.mock import patch
 
 from shared.models import Entity, KnowledgeGraph, NewsItem, Relation
-from functions.graph_updater.handler import (
-    update_graph_from_news,
-    _make_entity_id,
-    _entity_exists,
-    _apply_new_entities,
-    _apply_updated_relations,
+from shared.graph_ops import (
+    make_entity_id,
+    entity_exists,
+    apply_new_entities,
+    apply_updated_relations,
 )
+from functions.graph_updater.handler import update_graph_from_news
 from functions.digest_generator.handler import build_digest, _fallback_digest
 
 TODAY = date.today().isoformat()
@@ -55,22 +55,22 @@ def make_news(**kwargs) -> NewsItem:
 # ── utils ─────────────────────────────────────────────────────────────────────
 
 class TestUtils:
-    def test_make_entity_id_stable(self):
-        assert _make_entity_id("Пётр", "player") == _make_entity_id("Пётр", "player")
+    def testmake_entity_id_stable(self):
+        assert make_entity_id("Пётр", "player") == make_entity_id("Пётр", "player")
 
-    def test_make_entity_id_different_types(self):
-        assert _make_entity_id("Петров", "player") != _make_entity_id("Петров", "coach")
+    def testmake_entity_id_different_types(self):
+        assert make_entity_id("Петров", "player") != make_entity_id("Петров", "coach")
 
-    def test_entity_exists(self):
-        found, eid = _entity_exists(make_graph(), "Лада")
+    def testentity_exists(self):
+        found, eid = entity_exists(make_graph(), "Лада")
         assert found and eid == "lada_hc"
 
-    def test_entity_exists_case_insensitive(self):
-        found, _ = _entity_exists(make_graph(), "лада")
+    def testentity_exists_case_insensitive(self):
+        found, _ = entity_exists(make_graph(), "лада")
         assert found
 
     def test_entity_not_exists(self):
-        found, eid = _entity_exists(make_graph(), "Ак Барс")
+        found, eid = entity_exists(make_graph(), "Ак Барс")
         assert not found and eid is None
 
 
@@ -86,26 +86,26 @@ class TestApplyNewEntities:
     def test_adds_entity_and_relation(self):
         graph  = make_graph()
         before = len(graph.entities), len(graph.relations)
-        _apply_new_entities(graph, [self._new_player()], "http://x.com")
+        apply_new_entities(graph, [self._new_player()], "http://x.com")
         assert len(graph.entities) == before[0] + 1
         assert len(graph.relations) == before[1] + 1
 
     def test_skips_existing(self):
         graph  = make_graph()
         before = len(graph.entities)
-        _apply_new_entities(graph, [self._new_player(name="Лада", type="hockey_club")], "x")
+        apply_new_entities(graph, [self._new_player(name="Лада", type="hockey_club")], "x")
         assert len(graph.entities) == before
 
     def test_rumour_entity_flagged(self):
         graph = make_graph()
-        _apply_new_entities(graph, [self._new_player(name="Слух", is_rumour=True)], "x")
+        apply_new_entities(graph, [self._new_player(name="Слух", is_rumour=True)], "x")
         ent = next(e for e in graph.entities.values() if e.name == "Слух")
         assert ent.is_rumour
         rel = next(r for r in graph.relations if r.to_id == ent.id)
         assert rel.is_rumour
 
 
-# ── _apply_updated_relations ──────────────────────────────────────────────────
+# ── apply_updated_relations ──────────────────────────────────────────────────
 
 class TestApplyUpdatedRelations:
     def _upd(self, action, confidence=0.9, is_rumour=False):
@@ -115,19 +115,19 @@ class TestApplyUpdatedRelations:
     def test_confirm_raises_confidence(self):
         graph = make_graph()
         graph.relations[0].confidence = 0.5
-        _apply_updated_relations(graph, [self._upd("confirm", 0.95)])
+        apply_updated_relations(graph, [self._upd("confirm", 0.95)])
         assert graph.relations[0].confidence >= 0.9
 
     def test_remove_lowers_confidence(self):
         graph    = make_graph()
         original = graph.relations[0].confidence
-        _apply_updated_relations(graph, [self._upd("remove", 0.3)])
+        apply_updated_relations(graph, [self._upd("remove", 0.3)])
         assert graph.relations[0].confidence < original
 
     def test_rumour_confirmed(self):
         graph = make_graph()
         graph.relations[0].is_rumour = True
-        _apply_updated_relations(graph, [self._upd("confirm", 0.95)])
+        apply_updated_relations(graph, [self._upd("confirm", 0.95)])
         assert not graph.relations[0].is_rumour
 
 
@@ -137,29 +137,29 @@ BASIC_LLM = '{"is_relevant":true,"is_rumour":false,"importance":0.8,"new_entitie
 NEW_ENT_LLM = '{"is_relevant":true,"is_rumour":false,"importance":0.9,"new_entities":[{"name":"Сергей Новиков","type":"player","relation_to_root":"HAS_PLAYER","confidence":0.95,"is_rumour":false,"search_queries":["Новиков Лада"]}],"updated_relations":[],"summary":"Подписан игрок"}'
 
 class TestUpdateGraph:
-    @patch("functions.graph_updater.handler.analyze_news", return_value=BASIC_LLM)
+    @patch("functions.graph_updater.analysis.analyze_news", return_value=BASIC_LLM)
     def test_version_incremented(self, _):
         g, _ = update_graph_from_news(make_graph(), [make_news()], {"lada_hc"})
         assert g.version == 2
 
-    @patch("functions.graph_updater.handler.analyze_news", return_value=BASIC_LLM)
+    @patch("functions.graph_updater.analysis.analyze_news", return_value=BASIC_LLM)
     def test_mentioned_streak_updated(self, _):
         g, _ = update_graph_from_news(make_graph(), [make_news()], {"lada_hc"})
         assert g.entities["lada_hc"].mention_streak >= 1
 
-    @patch("functions.graph_updater.handler.analyze_news", return_value=BASIC_LLM)
+    @patch("functions.graph_updater.analysis.analyze_news", return_value=BASIC_LLM)
     def test_unmentioned_streak_reset(self, _):
         graph = make_graph()
         graph.entities["coach_1"].mention_streak = 5
         g, _ = update_graph_from_news(graph, [make_news()], {"lada_hc"})
         assert g.entities["coach_1"].mention_streak == 0
 
-    @patch("functions.graph_updater.handler.analyze_news", return_value=None)
+    @patch("functions.graph_updater.analysis.analyze_news", return_value=None)
     def test_llm_failure_safe(self, _):
         g, results = update_graph_from_news(make_graph(), [make_news()], set())
         assert g.version == 2 and results == []
 
-    @patch("functions.graph_updater.handler.analyze_news", return_value=NEW_ENT_LLM)
+    @patch("functions.graph_updater.analysis.analyze_news", return_value=NEW_ENT_LLM)
     def test_new_entity_added(self, _):
         g, _ = update_graph_from_news(make_graph(), [make_news()], {"lada_hc"})
         assert any(e.name == "Сергей Новиков" for e in g.entities.values())

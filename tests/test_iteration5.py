@@ -164,13 +164,13 @@ class TestVerifyNewsItem:
 
     NO_CONTRADICTION_RESPONSE = '{"has_contradiction": false, "contradictions": []}'
 
-    @patch("shared.fact_checker.analyze_news", return_value=NO_CONTRADICTION_RESPONSE)
+    @patch("shared.fact_checker.verifier.analyze_news", return_value=NO_CONTRADICTION_RESPONSE)
     def test_clean_news_returns_clean(self, _):
         result = verify_news_item(make_news(importance=0.9), make_graph())
         assert result.is_clean
         assert result.contradictions == []
 
-    @patch("shared.fact_checker.analyze_news", return_value=CONTRADICTION_RESPONSE)
+    @patch("shared.fact_checker.verifier.analyze_news", return_value=CONTRADICTION_RESPONSE)
     def test_contradiction_detected(self, _):
         result = verify_news_item(make_news(importance=0.9), make_graph())
         assert not result.is_clean
@@ -178,7 +178,7 @@ class TestVerifyNewsItem:
         assert result.contradictions[0].severity == "high"
         assert result.has_high_severity
 
-    @patch("shared.fact_checker.analyze_news", return_value=None)
+    @patch("shared.fact_checker.verifier.analyze_news", return_value=None)
     def test_llm_failure_returns_clean(self, _):
         result = verify_news_item(make_news(importance=0.9), make_graph())
         assert result.is_clean
@@ -231,7 +231,7 @@ class TestApplyContradictions:
 class TestVerifyAllNews:
     CLEAN_RESPONSE = '{"has_contradiction": false, "contradictions": []}'
 
-    @patch("shared.fact_checker.analyze_news", return_value=CLEAN_RESPONSE)
+    @patch("shared.fact_checker.verifier.analyze_news", return_value=CLEAN_RESPONSE)
     def test_clean_batch_no_contradictions(self, _):
         graph  = make_graph()
         news   = [make_news(importance=0.9, url=f"https://a.com/{i}") for i in range(3)]
@@ -250,7 +250,7 @@ class TestVerifyAllNews:
         }]
     }"""
 
-    @patch("shared.fact_checker.analyze_news", return_value=CONTRA_RESPONSE)
+    @patch("shared.fact_checker.verifier.analyze_news", return_value=CONTRA_RESPONSE)
     def test_contradiction_propagates_to_graph(self, _):
         graph  = make_graph()
         before = graph.relations[0].confidence
