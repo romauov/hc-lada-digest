@@ -1,3 +1,4 @@
+import json
 import logging
 import os
 import re
@@ -41,9 +42,11 @@ GRAPH_SYSTEM = """Ты — эксперт по хоккейному клубу �
 Отвечай на вопрос пользователя на основе предоставленных фактов из графа знаний.
 Если информации в графе достаточно — дай чёткий ответ со ссылкой на факты.
 Если подходит несколько фактов — перечисли их все, не ограничивайся одним.
-Если не хватает — напиши ровно одно слово: UNKNOWN.
-НЕ пиши вежливые отказы, «к сожалению», «нет информации», «не знаю» и т.п.
-Если в графе нет ответа — только UNKNOWN. Ничего больше."""
+
+Отвечай ТОЛЬКО валидным JSON без пояснений и markdown:
+- Если знаешь ответ: {"found": true, "answer": "твой ответ"}
+- Если не знаешь:    {"found": false}
+Никакого другого текста, только JSON."""
 
 SEARCH_SYSTEM = """Ты — эксперт по хоккейному клубу «Лада» Тольятти (ХК Лада, КХЛ).
 ВНИМАНИЕ: «Лада» в твоём контексте — это ХОККЕЙНЫЙ КЛУБ, а не автомобиль Лада (АвтоВАЗ).
@@ -82,8 +85,13 @@ def answer_from_graph(question: str, graph: KnowledgeGraph, chat_id: str) -> str
 Вопрос пользователя:
 {question}"""
     result = analyze_news(GRAPH_SYSTEM, prompt)
-    if result and "UNKNOWN" not in result:
-        return result
+    if result:
+        try:
+            data = json.loads(result)
+            if data.get("found") and data.get("answer"):
+                return data["answer"]
+        except (json.JSONDecodeError, TypeError):
+            pass
     return None
 
 
