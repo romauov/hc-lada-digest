@@ -5,6 +5,7 @@ import re
 from typing import Optional
 
 from shared.llm_providers import _call_llm
+from shared.tg_format import extract_message
 
 logger = logging.getLogger(__name__)
 
@@ -87,6 +88,9 @@ def classify_need_search(question: str, history: str, entities: Optional[dict] =
         known = "\n".join(f"- {e.name} ({e.type})" for e in entities.values())
         prompt = f"Сущности в графе:\n{known}\n\n{prompt}"
     result = _call_llm(CLASSIFY_SYSTEM, prompt, model=MODEL_LITE, temperature=0.0, max_tokens=5, yc_model=YC_MODEL_LITE)
+    if result:
+        result = extract_message(result)
+    logger.info("classify_need_search(%s): %s", question[:60], result)
     if result and "YES" in result.upper():
         return True
     return False

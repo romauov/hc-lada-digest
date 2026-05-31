@@ -133,21 +133,26 @@ def _handle_message(text: str, chat_id: str) -> str | None:
         logger.info("Search triggered by LLM classifier: %s", text[:80])
         answer = search_and_answer(text, chat_id)
         if answer:
+            answer = extract_message(answer)
             add_history(chat_id, "assistant", answer)
             update_graph_from_answer(text, answer)
+        logger.info("search_and_answer returned %s chars", len(answer) if answer else 0)
         return answer
 
     if graph:
         answer = answer_from_graph(text, graph, chat_id)
         if answer:
             add_history(chat_id, "assistant", answer)
+            logger.info("answer_from_graph returned %s chars", len(answer))
             return answer
 
     logger.info("Graph could not answer, searching via web search: %s", text[:80])
     answer = search_and_answer(text, chat_id)
     if answer:
+        answer = extract_message(answer)
         add_history(chat_id, "assistant", answer)
         update_graph_from_answer(text, answer)
+    logger.info("search_and_answer (fallback) returned %s chars", len(answer) if answer else 0)
     return answer
 
 

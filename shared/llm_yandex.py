@@ -3,6 +3,8 @@ from typing import Optional
 
 import requests
 
+from shared.tg_format import extract_message
+
 logger = logging.getLogger(__name__)
 
 YANDEX_CHAT_URL = "https://llm.api.cloud.yandex.net/v1/chat/completions"
@@ -41,7 +43,7 @@ def _call_yandex_chat(
         data = resp.json()
         text = data["choices"][0]["message"]["content"]
         logger.debug("Yandex chat response (%s)", yc_model)
-        return text.strip()
+        return extract_message(text.strip())
     except Exception as e:
         logger.warning("Yandex chat error: %s", e)
         return None
@@ -73,8 +75,11 @@ def _call_yandex_search(
                 for c in item.get("content", []):
                     if c.get("type") == "output_text":
                         text = c["text"].strip()
+                        if len(text) < 30:
+                            logger.warning("Yandex search: short response (%d chars), treating as failure", len(text))
+                            return None
                         logger.debug("Yandex search response (%s)", yc_model)
-                        return text
+                        return extract_message(text)
         logger.warning("Yandex search: unexpected response structure")
         return None
     except Exception as e:

@@ -9,6 +9,7 @@ from shared.models import Entity, KnowledgeGraph, Relation
 from shared.openrouter import analyze_news, search_answer
 from shared.classifiers import extract_from_bot_answer
 from shared.storage import load_graph, save_graph
+from shared.tg_format import extract_message
 
 logger = logging.getLogger(__name__)
 
@@ -106,7 +107,8 @@ def search_and_answer(question: str, chat_id: str) -> str | None:
 
 Вопрос пользователя:
 {question}"""
-    return search_answer(SEARCH_SYSTEM, prompt)
+    result = search_answer(SEARCH_SYSTEM, prompt)
+    return extract_message(result) if result else None
 
 
 def update_graph_from_answer(question: str, answer: str) -> None:

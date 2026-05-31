@@ -10,6 +10,7 @@ import requests
 
 from shared.monitoring import send_critical_alert
 from shared.llm_yandex import _call_yandex_chat, _call_yandex_search
+from shared.tg_format import extract_message
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +80,7 @@ def _call_openrouter(
                         f"\u0411\u044b\u043b\u0430: {model}\n"
                         f"\u0418\u0441\u043f\u043e\u043b\u044c\u0437\u0443\u0435\u0442\u0441\u044f: {m}"
                     )
-                return text.strip()
+                return extract_message(text.strip())
 
             except (requests.ConnectionError, requests.Timeout) as e:
                 logger.warning("OpenRouter network error (%s): %s", m, e)
@@ -108,10 +109,11 @@ def _call_llm(
         fn = _call_yandex_search if use_search else _call_yandex_chat
         result = fn(system_prompt, user_prompt, yc_model, YC_FOLDER_ID, YC_API_KEY, temperature, max_tokens)
         if result:
-            return result
+            return extract_message(result)
         send_critical_alert("\u26a0\ufe0f Yandex API \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d, \u043f\u0435\u0440\u0435\u0445\u043e\u0434 \u043d\u0430 OpenRouter")
 
-    return _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
+    result = _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
+    return extract_message(result) if result else None
 
 
 def analyze_news(system_prompt: str, user_prompt: str) -> Optional[str]:
@@ -127,6 +129,4 @@ def generate_digest(system_prompt: str, user_prompt: str) -> Optional[str]:
 
 
 def search_answer(system_prompt: str, user_prompt: str) -> Optional[str]:
-    return _call_llm(
-        system_prompt, user_prompt, model=MODEL_SEARCH, temperature=0.3, max_tokens=4000, yc_model=YC_MODEL_PRO, use_search=True,
-    )
+    return _call_openrouter(system_prompt, user_prompt, model=MODEL_SEARCH, temperature=0.3, max_tokens=4000)
