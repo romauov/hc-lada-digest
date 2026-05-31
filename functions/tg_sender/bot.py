@@ -5,7 +5,9 @@ telegram bot — интерактивный режим.
 """
 import logging
 import os
+import re
 import time
+import traceback
 from datetime import date
 
 import requests
@@ -399,7 +401,7 @@ def poll():
         except requests.Timeout:
             pass
         except Exception as e:
-            logger.error("poll error: %s", e)
+            logger.error("poll error (%s): %s\n%s", type(e).__name__, e, traceback.format_exc())
             time.sleep(SLEEP_ON_ERR)
 
 
