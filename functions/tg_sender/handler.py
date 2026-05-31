@@ -8,6 +8,7 @@ import logging
 import os
 
 import requests
+from shared.tg_format import sanitize_tg_html
 
 logger = logging.getLogger(__name__)
 
@@ -60,6 +61,7 @@ def send_digest(digest_text: str, is_empty: bool = False) -> bool:
             "⚠️ <b>Дайджест</b>: за сегодня свежих новостей не найдено."
         )
 
+    digest_text = sanitize_tg_html(digest_text)
     parts = _split_message(digest_text)
     ok    = True
     for i, part in enumerate(parts, 1):
