@@ -73,10 +73,14 @@ def _call_openrouter(
                 text = data["choices"][0]["message"]["content"]
                 citations = data.get("citations") or data["choices"][0]["message"].get("citations")
                 if citations:
+                    logger.info("OpenRouter citations found: %d urls", len(citations))
                     links = []
                     for i, url in enumerate(citations, 1):
                         links.append(f'<a href="{url}">{i}</a>')
                     text = text.strip() + "\n\n<b>Источники:</b>\n" + ", ".join(links)
+                else:
+                    logger.info("OpenRouter citations not found in response keys: %s",
+                                list(data.keys()))
                 logger.debug("OpenRouter response (%d tokens using %s)",
                              data.get("usage", {}).get("total_tokens", 0), m)
                 if m != model:

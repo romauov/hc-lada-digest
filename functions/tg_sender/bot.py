@@ -8,7 +8,7 @@ import requests
 
 from shared.storage import load_graph, load_digest
 from shared.tg_format import sanitize_tg_html, extract_message, md_to_tg, format_graph_summary
-from shared.tg_send import send_message, send_document
+from shared.tg_send import send_message, send_document, split_message
 from shared.classifiers import classify_need_search
 from functions.tg_sender.answers import (
     add_history, history_context, reset_history,
@@ -68,7 +68,12 @@ def _send(chat_id: str, text: str) -> bool:
     text = extract_message(text)
     text = md_to_tg(text)
     text = sanitize_tg_html(text)
-    return send_message(TOKEN, chat_id, text[:4000])
+    parts = split_message(text)
+    ok = True
+    for i, part in enumerate(parts, 1):
+        suffix = f"\n\n<i>Часть {i}/{len(parts)}</i>" if len(parts) > 1 else ""
+        ok = send_message(TOKEN, chat_id, part + suffix) and ok
+    return ok
 
 
 def _send_file(chat_id: str, file_path: str) -> bool:
