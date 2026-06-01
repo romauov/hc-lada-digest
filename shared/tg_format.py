@@ -48,6 +48,7 @@ def sanitize_tg_html(text: str) -> str:
     text = re.sub(r'(?is)</?ul[^>]*>', '', text)
     text = re.sub(r'(?is)</?ol[^>]*>', '', text)
     text = re.sub(r'(?is)</?div[^>]*>', '', text)
+    text = re.sub(r'(?is)<![^>]*>', '', text)
 
     def _replace_tag(m):
         tag = m.group(0)

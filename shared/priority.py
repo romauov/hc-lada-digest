@@ -1,7 +1,7 @@
 """
 Логика динамической приоритизации сущностей графа.
 """
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from shared.models import Entity
 
 # Базовые веса по типу сущности
@@ -76,7 +76,7 @@ def mark_mentioned(entity: Entity, today: str | None = None) -> Entity:
     if entity.last_mentioned == today:
         return entity  # уже отмечена сегодня
 
-    yesterday = (date.today().replace(day=date.today().day - 1)).isoformat()
+    yesterday = (date.today() - timedelta(days=1)).isoformat()
     if entity.last_mentioned == yesterday:
         entity.mention_streak += 1
     else:
