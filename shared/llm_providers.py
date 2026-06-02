@@ -3,6 +3,7 @@
 """
 import logging
 import os
+import re
 import time
 from typing import Optional
 
@@ -76,11 +77,19 @@ def _call_openrouter(
                     logger.info("OpenRouter citations found: %d urls", len(citations))
                     links = []
                     for i, url in enumerate(citations, 1):
-                        links.append(f'<a href="{url}">{i}</a>')
-                    text = text.strip() + "\n\n<b>Источники:</b>\n" + ", ".join(links)
+                        links.append(f"[{i}]({url})")
+                    text = text.strip() + "\n\n**Источники:**\n" + ", ".join(links)
                 else:
                     logger.info("OpenRouter citations not found in response keys: %s",
                                 list(data.keys()))
+                    urls = re.findall(r'https?://[^\s\[\])>"]+', text)
+                    if urls:
+                        seen = []
+                        for u in urls:
+                            if u not in seen:
+                                seen.append(u)
+                        links = [f"[{i}]({u})" for i, u in enumerate(seen, 1)]
+                        text = text.strip() + "\n\n**Источники:**\n" + ", ".join(links)
                 logger.debug("OpenRouter response (%d tokens using %s)",
                              data.get("usage", {}).get("total_tokens", 0), m)
                 if m != model:

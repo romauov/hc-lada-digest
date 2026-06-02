@@ -80,6 +80,7 @@ def extract_message(text: str) -> str:
 def md_to_tg(text: str) -> str:
     text = re.sub(r'```[\w]*\n?', '', text)
     text = re.sub(r'\n?```', '', text)
+    text = text.replace('<', '&lt;').replace('>', '&gt;')
     text = re.sub(r'\[([^\]]+)\]\(([^)]+)\)', r'<a href="\2">\1</a>', text)
     text = re.sub(r'\*\*([^*]+)\*\*', r'<b>\1</b>', text)
     text = re.sub(r'__([^_]+)__', r'<b>\1</b>', text)
