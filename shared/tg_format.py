@@ -16,7 +16,7 @@ def format_graph_summary(graph) -> str:
     for e in graph.entities.values():
         by_type.setdefault(e.type, []).append(e.name)
     lines = [
-        f"📊 <b>Граф знаний</b>",
+        f"📊 **Граф знаний**",
         f"Версия: {graph.version} | {graph.last_updated}",
         "",
     ]
@@ -29,7 +29,7 @@ def format_graph_summary(graph) -> str:
     lines.append(f"Связей: {len(graph.relations)}")
     top = sorted(graph.entities.values(), key=lambda e: e.priority_score, reverse=True)[:5]
     lines.append("")
-    lines.append(f"<b>Топ по приоритету:</b>")
+    lines.append(f"**Топ по приоритету:**")
     for e in top:
         mentioned = e.last_mentioned or "никогда"
         lines.append(f"• {e.name} ({e.priority_score}) — {mentioned}")
