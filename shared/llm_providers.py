@@ -82,7 +82,7 @@ def _call_openrouter(
                 else:
                     logger.info("OpenRouter citations not found in response keys: %s",
                                 list(data.keys()))
-                    urls = re.findall(r'https?://[^\s\[\])>"]+', text)
+                    urls = re.findall(r'(?<!\]\()https?://[^\s\[\])>"]+', text)
                     if urls:
                         seen = []
                         for u in urls:
