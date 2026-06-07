@@ -33,4 +33,10 @@ python -m pytest tests/ -v
 - **Deferred news**: TTL 3 дня; активируются если свежих новостей < 3.
 - **SourceRegistry**: синглтон, сбрасывать через `reset_registry()` перед каждым тестом.
 - **Тесты**: LLM вызовы мокируются `@patch`. Не требуют Docker/токенов.
+- **ML-сервис**: FastAPI + rubert-tiny2 (CPU) на порту 8001.
+  - `POST /dedup` — семантическая дедупликация заголовков (порог DEDUP_THRESHOLD=0.92).
+  - `POST /relevance` — оценка релевантности (score + is_relevant).
+  - `GET /health` — проверка статуса.
+  - Fallback: при недоступности ML дедупликация отключена, все новости считаются релевантными.
+- **Фильтрация в SourceRegistry**: keyword prefilter → semantic dedup → relevance scoring → добор low_relevance при < MIN_NEWS_THRESHOLD (3).
 - **No CI/linter/formatter/typecheck**: ни pyproject.toml, ни .github/workflows нет.

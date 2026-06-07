@@ -254,7 +254,7 @@ class TestSourceRegistry:
         class FakeSource(BaseSource):
             name = "fake"
             def fetch(self, entity):
-                return [NI(url=f"https://fake.com/{entity.id}", title="T",
+                return [NI(url=f"https://fake.com/{entity.id}", title="Лада новость",
                            published_at="", source="fake", entity_id=entity.id)]
 
         registry = SourceRegistry()

@@ -7,6 +7,7 @@ services:
     environment:
       - DATA_DIR=/data
       - TZ=Europe/Samara
+      - ML_URL=http://ml:8001
     restart: unless-stopped
 
   bot:
@@ -17,5 +18,28 @@ services:
     environment:
       - DATA_DIR=/data
       - TZ=Europe/Samara
+      - ML_URL=http://ml:8001
     command: ["python", "-m", "functions.tg_sender.bot"]
     restart: unless-stopped
+
+  ml:
+    build:
+      context: .
+      dockerfile: Dockerfile.ml
+    volumes:
+      - model-cache:/root/.cache/huggingface
+    environment:
+      - ML_PORT=8001
+      - EMBED_MODEL=cointegrated/rubert-tiny2
+      - DEDUP_THRESHOLD=0.92
+      - RELEVANCE_THRESHOLD=0.65
+    restart: unless-stopped
+    healthcheck:
+      test: ["CMD", "python", "-c", "import requests; requests.get('http://localhost:8001/health', timeout=3)"]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 60s
+
+volumes:
+  model-cache:

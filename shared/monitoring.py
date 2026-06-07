@@ -30,6 +30,8 @@ class PipelineMetrics:
     graph_version:     int = 0
     digest_length:     int = 0
     llm_used:          bool = False
+    seen_count:        int = 0
+    news_count:        int = 0
     source_stats:      dict = field(default_factory=dict)
     errors:            list[str] = field(default_factory=list)
     warnings:          list[str] = field(default_factory=list)
@@ -79,6 +81,7 @@ class PipelineMetrics:
 
         lines.append(f"📊 Граф: v{self.graph_version} · {self.entities_after} сущностей")
         lines.append(f"⏱ Время: {self.duration_seconds:.1f}с")
+        lines.append(f"🗂 SeenStore: {self.seen_count} · NewsStore: {self.news_count}")
 
         # источники
         active = {

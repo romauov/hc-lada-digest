@@ -8,7 +8,7 @@ from shared.storage import load_graph, save_digest, save_graph
 from shared.seen import SeenStore
 from shared.news_store import NewsStore
 from graph.seed import build_initial_graph
-from shared.deferred import apply_deferred_to_pipeline
+from shared.deferred import MIN_NEWS_THRESHOLD, apply_deferred_to_pipeline
 from shared.versioning import save_snapshot, compute_diff
 from shared.monitoring import PipelineMetrics, PipelineRun, send_monitoring_report, send_critical_alert
 from functions.search_worker.handler import search_entity_news
@@ -35,6 +35,11 @@ def _collect_news(graph, seen: SeenStore):
         if total >= MAX_NEWS_IN_DIGEST:
             break
         items = search_entity_news(entity)
+        if len(items) < MIN_NEWS_THRESHOLD:
+            low = get_registry().get_low_relevance(entity.id)
+            need = MIN_NEWS_THRESHOLD - len(items)
+            items = items + low[:need]
+            logger.info("Filled %d low-relevance items for '%s'", min(need, len(low)), entity.name)
         unique = [i for i in items if not seen.is_seen(i.url) and i.url not in seen_this_run]
         seen_this_run.update(i.url for i in unique)
         remaining = MAX_NEWS_IN_DIGEST - total
@@ -86,6 +91,7 @@ def run_pipeline() -> dict:
         data_dir = os.environ.get("DATA_DIR", "/data")
         seen = SeenStore(os.path.join(data_dir, "seen_urls.db"))
         news_by_entity, mentioned_ids = _collect_news(graph, seen)
+        metrics.seen_count = seen.count()
         seen.close()
         all_fresh = [i for items in news_by_entity.values() for i in items]
         metrics.news_fresh = len(all_fresh)
@@ -103,6 +109,7 @@ def run_pipeline() -> dict:
             send_digest("", is_empty=True)
             save_graph(graph)
             news_store.save(final_news)
+            metrics.news_count = news_store.count()
             news_store.close()
             send_monitoring_report(metrics)
             return {"status": "ok", "news_count": 0}
@@ -168,6 +175,7 @@ def run_pipeline() -> dict:
 
         send_digest(digest_text)
 
+        metrics.news_count = news_store.count()
         news_store.close()
 
     send_monitoring_report(metrics)

@@ -112,6 +112,11 @@ class NewsStore:
             for r in rows
         ]
 
+    def count(self) -> int:
+        conn = self._connect()
+        cur = conn.execute("SELECT COUNT(*) FROM news")
+        return cur.fetchone()[0]
+
     def close(self):
         if self._conn is not None:
             self._conn.close()
