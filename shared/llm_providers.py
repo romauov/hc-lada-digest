@@ -1,5 +1,5 @@
 """
-Клиент LLM с 3-tier fallback: YandexGPT → OpenRouter платные → OpenRouter бесплатные.
+Клиент LLM с 3-tier fallback: OpenRouter → YandexGPT → OpenRouter бесплатные.
 """
 import logging
 import os
@@ -123,16 +123,19 @@ def _call_llm(
     yc_model: Optional[str] = None,
     use_search: bool = False,
 ) -> Optional[str]:
-    """3-tier: Yandex → OpenRouter paid → OpenRouter free."""
+    """3-tier: OpenRouter → Yandex → OpenRouter free."""
+    result = _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
+    if result:
+        return extract_message(result)
+
     if yc_model and YC_API_KEY and YC_FOLDER_ID:
         fn = _call_yandex_search if use_search else _call_yandex_chat
         result = fn(system_prompt, user_prompt, yc_model, YC_FOLDER_ID, YC_API_KEY, temperature, max_tokens)
         if result:
             return extract_message(result)
-        send_critical_alert("\u26a0\ufe0f Yandex API \u043d\u0435\u0434\u043e\u0441\u0442\u0443\u043f\u0435\u043d, \u043f\u0435\u0440\u0435\u0445\u043e\u0434 \u043d\u0430 OpenRouter")
+        send_critical_alert("⚠️ Yandex API недоступен, использован OpenRouter")
 
-    result = _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
-    return extract_message(result) if result else None
+    return None
 
 
 def analyze_news(system_prompt: str, user_prompt: str) -> Optional[str]:

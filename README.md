@@ -2,7 +2,7 @@
 
 Сервис ежедневного дайджеста новостей о хоккейном клубе «Лада» (Тольятти).
 
-- **LLM**: YandexGPT (Tier 1) → OpenRouter paid → OpenRouter free (qwen)
+- **LLM**: OpenRouter (Tier 1) → YandexGPT → OpenRouter free (qwen)
 - **ML**: rubert-tiny2 для семантической дедупликации и фильтра релевантности
 - **Хранилище**: локальные JSON + SQLite на Docker volume
 - **Бот**: Telegram bot с long-polling, команды `/start`, `/graph`, `/digest`, `/logs`
