@@ -104,6 +104,98 @@ class TestApplyNewEntities:
         rel = next(r for r in graph.relations if r.to_id == ent.id)
         assert rel.is_rumour
 
+    # ── Filter A: invalid names ───────────────────────────────────────────
+
+    def test_skips_digits_only(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(graph, [dict(name="12345", type="player", relation_to_root="HAS_PLAYER")], "x")
+        assert len(graph.entities) == before
+
+    def test_skips_null_literal(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(graph, [dict(name="null", type="player", relation_to_root="HAS_PLAYER")], "x")
+        assert len(graph.entities) == before
+
+    def test_skips_hokkeist(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(graph, [dict(name="хоккеисты", type="player", relation_to_root="HAS_PLAYER")], "x")
+        assert len(graph.entities) == before
+
+    def test_skips_coach_generic(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(graph, [dict(name="главный тренер", type="coach", relation_to_root="HAS_COACH")], "x")
+        assert len(graph.entities) == before
+
+    def test_skips_name_over_60_chars(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(graph, [dict(name="А" * 61, type="player", relation_to_root="HAS_PLAYER")], "x")
+        assert len(graph.entities) == before
+
+    # ── Filter B: hockey_club with wrong relation ─────────────────────────
+
+    def test_skips_hockey_club_wrong_relation(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(
+            graph,
+            [dict(name="Ак Барс", type="hockey_club", relation_to_root="RELATED_TO")],
+            "x",
+        )
+        assert len(graph.entities) == before
+
+    def test_adds_hockey_club_transfer_relation(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(
+            graph,
+            [dict(name="Ак Барс", type="hockey_club", relation_to_root="SIGNED_FROM")],
+            "x",
+        )
+        assert len(graph.entities) == before + 1
+
+    # ── Filter C: normalized duplicates ───────────────────────────────────
+
+    def test_skips_normalized_dup_yo(self):
+        graph = make_graph()
+        apply_new_entities(
+            graph,
+            [dict(name="Игорь Швырёв", type="player", relation_to_root="HAS_PLAYER")],
+            "x",
+        )
+        before = len(graph.entities)
+        apply_new_entities(
+            graph,
+            [dict(name="Игорь Швырев", type="player", relation_to_root="HAS_PLAYER")],
+            "x",
+        )
+        assert len(graph.entities) == before
+
+    def test_skips_normalized_dup_spaces(self):
+        graph = make_graph()
+        apply_new_entities(
+            graph,
+            [dict(name="Петр", type="player", relation_to_root="HAS_PLAYER")],
+            "x",
+        )
+        before = len(graph.entities)
+        apply_new_entities(
+            graph,
+            [dict(name="Пётр ", type="player", relation_to_root="HAS_PLAYER")],
+            "x",
+        )
+        assert len(graph.entities) == before
+
+    def test_adds_valid_player_still_works(self):
+        graph = make_graph()
+        before = len(graph.entities)
+        apply_new_entities(graph, [self._new_player()], "http://x.com")
+        assert len(graph.entities) == before + 1
+
 
 # ── apply_updated_relations ──────────────────────────────────────────────────
 

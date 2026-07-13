@@ -6,7 +6,7 @@ from shared.models import Entity
 
 # Базовые веса по типу сущности
 BASE_WEIGHTS: dict[str, float] = {
-    "hockey_club": 1.0,
+    "hockey_club": 0.3,
     "coach":        0.8,
     "player":       0.6,
     "sponsor":      0.5,
@@ -15,6 +15,17 @@ BASE_WEIGHTS: dict[str, float] = {
     "official":     0.5,   # президент, GM и т.д.
     "league":       0.4,
     "other":        0.2,
+}
+
+TYPE_CAPS: dict[str, float] = {
+    "hockey_club": 0.6,
+    "other":       0.3,
+    "arena":       0.4,
+}
+
+STREAK_CAPS: dict[str, int] = {
+    "hockey_club": 0,
+    "other":       1,
 }
 
 MAX_STREAK_BONUS = 0.3
@@ -42,22 +53,25 @@ def _recency_factor(last_mentioned: str | None) -> float:
     return 0.3
 
 
-def _streak_bonus(streak: int) -> float:
+def _streak_bonus(entity: Entity) -> float:
+    max_streak = STREAK_CAPS.get(entity.type, None)
+    streak = entity.mention_streak
+    if max_streak is not None:
+        streak = min(streak, max_streak)
     return min(streak * STREAK_STEP, MAX_STREAK_BONUS)
 
 
 def compute_priority(entity: Entity) -> float:
-    """
-    priority = base_weight × recency_factor + streak_bonus
+    if entity.id == "lada_hc":
+        return 1.5
 
-    Результат зажат в [0.0, 1.5] — намеренно допускаем > 1.0
-    для сущностей с высоким streak, чтобы они явно выделялись.
-    """
     base    = BASE_WEIGHTS.get(entity.type, BASE_WEIGHTS["other"])
     recency = _recency_factor(entity.last_mentioned)
-    streak  = _streak_bonus(entity.mention_streak)
+    streak  = _streak_bonus(entity)
     score   = base * recency + streak
-    return round(min(score, 1.5), 4)
+
+    cap = TYPE_CAPS.get(entity.type, 1.5)
+    return round(min(score, cap), 4)
 
 
 def update_priorities(entities: dict[str, Entity]) -> dict[str, Entity]:

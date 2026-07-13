@@ -11,9 +11,9 @@ from shared.priority import compute_priority, mark_mentioned, mark_not_mentioned
 
 # ── Fixtures ──────────────────────────────────────────────────────────────────
 
-def make_entity(type_="hockey_club", last_mentioned=None, streak=0) -> Entity:
+def make_entity(type_="hockey_club", last_mentioned=None, streak=0, id_="test_entity") -> Entity:
     return Entity(
-        id="test_entity",
+        id=id_,
         type=type_,
         name="Test",
         last_mentioned=last_mentioned,
@@ -59,10 +59,10 @@ class TestModels:
 # ── Тесты приоритизации ───────────────────────────────────────────────────────
 
 class TestPriority:
-    def test_club_higher_than_arena(self):
-        club  = make_entity(type_="hockey_club", last_mentioned=date.today().isoformat())
-        arena = make_entity(type_="arena",        last_mentioned=date.today().isoformat())
-        assert compute_priority(club) > compute_priority(arena)
+    def test_coach_higher_than_arena(self):
+        coach = make_entity(type_="coach", last_mentioned=date.today().isoformat())
+        arena = make_entity(type_="arena", last_mentioned=date.today().isoformat())
+        assert compute_priority(coach) > compute_priority(arena)
 
     def test_recent_mention_boosts_score(self):
         yesterday = (date.today() - timedelta(days=1)).isoformat()
@@ -73,16 +73,41 @@ class TestPriority:
 
     def test_streak_boosts_score(self):
         today = date.today().isoformat()
-        e_no_streak  = make_entity(last_mentioned=today, streak=0)
-        e_has_streak = make_entity(last_mentioned=today, streak=3)
+        e_no_streak  = make_entity(type_="player", last_mentioned=today, streak=0)
+        e_has_streak = make_entity(type_="player", last_mentioned=today, streak=3)
         assert compute_priority(e_has_streak) > compute_priority(e_no_streak)
 
     def test_streak_capped(self):
         today = date.today().isoformat()
-        e10 = make_entity(last_mentioned=today, streak=10)
-        e50 = make_entity(last_mentioned=today, streak=50)
+        e10 = make_entity(type_="player", last_mentioned=today, streak=10)
+        e50 = make_entity(type_="player", last_mentioned=today, streak=50)
         # разница должна быть минимальной — бонус ограничен
         assert abs(compute_priority(e10) - compute_priority(e50)) < 0.01
+
+    def test_root_always_max(self):
+        root = make_entity(type_="hockey_club", id_="lada_hc")
+        assert compute_priority(root) == 1.5
+
+    def test_hockey_club_type_capped(self):
+        today = date.today().isoformat()
+        club = make_entity(type_="hockey_club", last_mentioned=today, streak=29)
+        assert compute_priority(club) <= 0.6
+
+    def test_hockey_club_streak_ignored(self):
+        today = date.today().isoformat()
+        e0 = make_entity(type_="hockey_club", last_mentioned=today, streak=0)
+        e5 = make_entity(type_="hockey_club", last_mentioned=today, streak=5)
+        assert compute_priority(e0) == compute_priority(e5)
+
+    def test_other_type_capped(self):
+        today = date.today().isoformat()
+        e = make_entity(type_="other", last_mentioned=today, streak=10)
+        assert compute_priority(e) <= 0.3
+
+    def test_coach_scoring_unchanged(self):
+        today = date.today().isoformat()
+        coach = make_entity(type_="coach", last_mentioned=today)
+        assert compute_priority(coach) == 0.96
 
     def test_mark_mentioned_increments_streak(self):
         yesterday = (date.today() - timedelta(days=1)).isoformat()
@@ -120,15 +145,15 @@ class TestPriority:
     def test_get_entities_by_priority(self):
         today = date.today().isoformat()
         graph = KnowledgeGraph(
-            root_id="club",
+            root_id="team",
             created_at=today,
             last_updated=today,
             version=1,
             entities={
-                "club":  make_entity(type_="hockey_club", last_mentioned=today),
-                "arena": make_entity(type_="arena",        last_mentioned=today),
+                "coach": make_entity(type_="coach", last_mentioned=today),
+                "arena": make_entity(type_="arena", last_mentioned=today),
             },
             relations=[],
         )
         sorted_entities = graph.get_entities_by_priority()
-        assert sorted_entities[0].type == "hockey_club"
+        assert sorted_entities[0].type == "coach"
