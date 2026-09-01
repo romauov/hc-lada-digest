@@ -22,4 +22,8 @@ COPY . .
 
 COPY crontab /etc/crontab
 
+COPY scripts/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
+
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["supercronic", "/etc/crontab"]

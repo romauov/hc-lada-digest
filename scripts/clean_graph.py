@@ -44,7 +44,7 @@ CLUB_IDS_TO_REASSIGN = {
 # ── Мусор + сущности вне контекста — новости удаляются ──────────────────
 
 JUNK_IDS_TO_DELETE = {
-    # мусорные сущности
+    # мусорные сущности (описания вместо имён)
     "player_null",
     "player_хоккеисты",
     "player_ещ__пять_хоккеистов",
@@ -61,6 +61,12 @@ JUNK_IDS_TO_DELETE = {
     "other_тренерский_штаб",
     "hockey_команда_из_пермского_края",
     "arena_ботаническая_улица__5__тольятт",
+    "player_новый_нападающий",
+    "player_защитник_из_канады",
+    "player_вратарь",
+    "player_белорусский_нападающий",
+    "coach_новый_тренер_по_развитию",
+    "other_специалист",
     # сущности вне контекста Лады
     "other_нэшвилл",
     "other_вайсфельд",
@@ -76,6 +82,12 @@ JUNK_IDS_TO_DELETE = {
     "player_вадим_шипачев",
     "player_вадим_шипач_в",
     "player_шипач_в_вадим",
+    "player_александр_коваленко",  # ФК Локомотив, не ХК Лада
+    "other_пелагея",              # певица, не к хоккею
+    "player_ирина_мокат",         # не хоккеист
+    "player_аноп",                # не идентифицирован
+    "player_канарский",           # мусор
+    "player_савчик",              # мусор
 }
 
 # ── Дубли — слияние: старый_id → новый_id ─────────────────────────────
@@ -100,6 +112,11 @@ MERGE_MAP = {
     "other__академия_михайлова_": "other_академия_михайлова",
     "coach_десятков": "coach_павел_десятков",
     "coach_зубов_павел": "coach_павел_зубов",
+    # новые дубли (миллиман, шикин, максимов, березин)
+    "player_миллман": "player_миллмэн",
+    "player_дмитрий_шикин": "player_шикин",
+    "player_кирилл_максимов": "player_максимов",
+    "player_максим_березин": "player_березин",
 }
 
 # ── Отношения, которые нужно удалить (типы чужих клубов) ──────────────
@@ -157,6 +174,21 @@ def clean_graph(data_dir: str) -> int:
         if r["to"] in merge_sources:
             r["to"] = MERGE_MAP[r["to"]]
 
+    # ── relations: дедупликация (одинаковые from+to+type) ──
+    seen_rels = set()
+    deduped_relations = []
+    duplicates_removed = 0
+    for r in relations:
+        key = (r["from"], r["to"], r["type"])
+        if key in seen_rels:
+            duplicates_removed += 1
+            continue
+        seen_rels.add(key)
+        deduped_relations.append(r)
+    relations = deduped_relations
+    if duplicates_removed:
+        logger.info("Removed %d duplicate relations", duplicates_removed)
+
     # ── entities: удаляем ──
     for eid in all_to_remove:
         entities.pop(eid, None)
@@ -177,7 +209,7 @@ def clean_graph(data_dir: str) -> int:
     relations_removed = relations_before - len(relations)
     logger.info("Graph: %d → %d entities (removed %d + merged %d)",
                 total_before, len(entities), len(all_to_remove), len(merge_sources))
-    logger.info("Relations: %d → %d", relations_before, len(relations))
+    logger.info("Relations: %d → %d (deduped %d)", relations_before, len(relations), duplicates_removed)
 
     # ── чистим news.db ──
     if os.path.exists(news_db_path):
