@@ -3,13 +3,17 @@ import os
 from datetime import date
 
 from shared.models import KnowledgeGraph, NewsItem
-from shared.priority import update_priorities
+from shared.priority import mark_mentioned, mark_not_mentioned, update_priorities
 from shared.storage import load_graph, save_digest, save_graph
 from shared.seen import SeenStore
 from shared.news_store import NewsStore
 from graph.seed import build_initial_graph
 from shared.deferred import MIN_NEWS_THRESHOLD, apply_deferred_to_pipeline
 from shared.versioning import save_snapshot, compute_diff
+from shared.approval import (
+    build_approved_graph, get_admin_id, itemize_changes,
+    request_all_approvals, STATUS_APPROVED,
+)
 from shared.monitoring import PipelineMetrics, PipelineRun, send_monitoring_report, send_critical_alert
 from functions.search_worker.handler import search_entity_news
 from functions.search_worker.sources.registry import get_registry, reset_registry
@@ -22,6 +26,8 @@ logger = logging.getLogger(__name__)
 MAX_NEWS_IN_DIGEST = int(os.environ.get("MAX_NEWS_IN_DIGEST", "20"))
 USE_LLM = os.environ.get("USE_LLM", "true").lower() == "true"
 USE_FACT_CHECK = os.environ.get("USE_FACT_CHECK", "true").lower() == "true"
+GRAPH_APPROVAL = os.environ.get("GRAPH_APPROVAL", "true").lower() == "true"
+GRAPH_APPROVAL_TIMEOUT = int(os.environ.get("GRAPH_APPROVAL_TIMEOUT", "3600"))
 
 
 def _collect_news(graph, seen: SeenStore):
@@ -117,7 +123,7 @@ def run_pipeline() -> dict:
         news_store.save(final_news)
 
         save_snapshot(graph, label="before_update")
-        graph_before = graph
+        graph_before = KnowledgeGraph.from_dict(graph.to_dict())
         contradictions = []
 
         if USE_LLM:
@@ -146,6 +152,23 @@ def run_pipeline() -> dict:
             diff = compute_diff(graph_before, graph)
             if not diff.is_empty():
                 logger.info("Graph diff: %s", diff.summary())
+
+            if GRAPH_APPROVAL and not diff.is_empty():
+                items = itemize_changes(graph_before, graph)
+                if items:
+                    decisions = request_all_approvals(get_admin_id(), items, GRAPH_APPROVAL_TIMEOUT)
+                    approved = sum(1 for d in decisions.values() if d == STATUS_APPROVED)
+                    rejected = len(items) - approved
+                    logger.info("Graph approval results: %d approved, %d rejected", approved, rejected)
+                    metrics.add_warning(f"graph approval: {approved} ok, {rejected} rejected")
+                    graph = build_approved_graph(graph_before, items, decisions)
+                    for eid, entity in graph.entities.items():
+                        graph.entities[eid] = (
+                            mark_mentioned(entity) if eid in mentioned_ids else mark_not_mentioned(entity)
+                        )
+                    graph.entities = update_priorities(graph.entities)
+                    graph.version += 1
+                    graph.last_updated = date.today().isoformat()
 
             try:
                 if USE_FACT_CHECK and contradictions:

@@ -9,6 +9,10 @@ import requests
 from shared.storage import load_graph, load_digest
 from shared.tg_format import sanitize_tg_html, extract_message, md_to_tg, format_graph_summary
 from shared.tg_send import send_message, send_document, split_message
+from shared.tg_send import answer_callback_query, edit_message_text
+from shared.approval import (
+    get_proposal, record_decision, STATUS_APPROVED, STATUS_REJECTED,
+)
 from shared.classifiers import classify_need_search
 from functions.tg_sender.answers import (
     add_history, history_context, reset_history,
@@ -161,6 +165,41 @@ def _handle_message(text: str, chat_id: str) -> str | None:
     return answer
 
 
+def _handle_callback(cb: dict, chat_id: str) -> None:
+    if chat_id != ADMIN_ID:
+        logger.info("Ignored callback from %s", chat_id)
+        return
+
+    data = cb.get("data", "")
+    parts = data.split(":")
+    if len(parts) != 2 or parts[1] == "":
+        return
+    action, proposal_id = parts[0], parts[1]
+
+    decision = None
+    if action == "approve":
+        decision = STATUS_APPROVED
+    elif action == "reject":
+        decision = STATUS_REJECTED
+    else:
+        return
+
+    recorded = record_decision(proposal_id, decision)
+    label  = "✅ Принято" if decision == STATUS_APPROVED else "❌ Отклонено"
+    text   = f"{label} — решение записано." if recorded else "Не удалось записать решение (запрос устарел или не найден)."
+    answer_callback_query(TOKEN, cb.get("id", ""), text)
+
+    proposal = get_proposal(proposal_id)
+    if proposal and "message" in cb:
+        msg = cb.get("message", {})
+        preview = proposal.get("preview", "")
+        new_text = f"🛡 <b>Подтверждение изменения графа</b>\n\n{preview}\n\n{label}"
+        message_id = msg.get("message_id")
+        chat_id_msg = str(msg.get("chat", {}).get("id", ""))
+        if message_id is not None:
+            edit_message_text(TOKEN, chat_id_msg, message_id, new_text)
+
+
 def poll():
     if not ADMIN_ID:
         logger.error("TG_ADMIN_ID not set — bot disabled")
@@ -176,13 +215,22 @@ def poll():
             resp = requests.get(url, params={
                 "offset": offset,
                 "timeout": POLL_TIMEOUT,
-                "allowed_updates": ["message"],
+                "allowed_updates": ["message", "callback_query"],
             }, timeout=POLL_TIMEOUT + 5)
             resp.raise_for_status()
             data = resp.json()
 
             for update in data.get("result", []):
                 offset = update["update_id"] + 1
+                callback = update.get("callback_query")
+                if callback:
+                    chat_id = str(callback.get("from", {}).get("id", ""))
+                    if not chat_id:
+                        chat_id = str(callback.get("message", {}).get("chat", {}).get("id", ""))
+                    logger.info("Callback from admin: %s", callback.get("data", "")[:60])
+                    _handle_callback(callback, chat_id)
+                    continue
+
                 msg = update.get("message")
                 if not msg:
                     continue

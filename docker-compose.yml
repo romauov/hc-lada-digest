@@ -8,6 +8,8 @@ services:
       - DATA_DIR=/data
       - TZ=Europe/Samara
       - ML_URL=http://ml:8001
+      - GRAPH_APPROVAL=${GRAPH_APPROVAL:-true}
+      - GRAPH_APPROVAL_TIMEOUT=${GRAPH_APPROVAL_TIMEOUT:-3600}
     restart: unless-stopped
 
   bot:

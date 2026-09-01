@@ -34,7 +34,7 @@ logger = logging.getLogger(__name__)
 
 DATA_DIR = os.environ.get("DATA_DIR", "/data")
 
-SUB_DIRS_TO_CLEAR = ["digests", "snapshots", "backups", "logs"]
+SUB_DIRS_TO_CLEAR = ["digests", "snapshots", "backups", "logs", "pending"]
 
 DB_FILES = ["news.db", "news.db-wal", "news.db-shm", "news.db-journal",
             "seen_urls.db", "seen_urls.db-wal", "seen_urls.db-shm",
