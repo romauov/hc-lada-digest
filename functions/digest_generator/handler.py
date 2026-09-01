@@ -1,5 +1,5 @@
 """
-digest_generator — генерирует структурированный дайджест через YandexGPT.
+digest_generator — генерирует структурированный дайджест через LLM.
 
 Категории дайджеста:
   🏒 РЕЗУЛЬТАТЫ И МАТЧИ
@@ -58,7 +58,7 @@ def _build_prompt(news_with_analysis: list[dict], graph: KnowledgeGraph, today: 
 
 
 def _fallback_digest(news_with_analysis: list[dict], graph: KnowledgeGraph, today: str) -> str:
-    """Простой дайджест без LLM на случай недоступности YandexGPT."""
+    """Простой дайджест без LLM на случай недоступности модели."""
     root      = graph.entities.get(graph.root_id)
     root_name = root.name if root else "Клуб"
     display   = date.fromisoformat(today).strftime("%d.%m.%Y")
@@ -87,7 +87,7 @@ def build_digest(
     today: str | None = None,
 ) -> str:
     """
-    Генерирует дайджест через YandexGPT.
+    Генерирует дайджест через LLM.
     При ошибке LLM возвращает fallback-дайджест.
     """
     today = today or date.today().isoformat()
@@ -99,7 +99,7 @@ def build_digest(
         logger.info("Digest generated (%d chars)", len(response))
         return response
 
-    logger.warning("YandexGPT unavailable — fallback digest")
+    logger.warning("LLM unavailable — fallback digest")
     return _fallback_digest(news_with_analysis, graph, today)
 
 

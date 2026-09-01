@@ -2,7 +2,7 @@
 
 Сервис ежедневного дайджеста новостей о хоккейном клубе «Лада» (Тольятти).
 
-- **LLM**: OpenRouter (Tier 1) → YandexGPT → OpenRouter free (qwen)
+- **LLM**: OpenRouter (Tier 1) → OpenRouter free (qwen)
 - **ML**: rubert-tiny2 для семантической дедупликации и фильтра релевантности
 - **Хранилище**: локальные JSON + SQLite на Docker volume
 - **Бот**: Telegram bot с long-polling, команды `/start`, `/graph`, `/digest`, `/logs`
@@ -10,7 +10,7 @@
 ## Архитектура
 
 ```
-supercronic (cron 8:00)          Telegram bot (long-polling)
+supercronic (cron 10:00)         Telegram bot (long-polling)
     ↓                                    ↑
 orchestrator — управляет пайплайном       │
     ↓                                     │
@@ -29,13 +29,15 @@ tg_sender → Telegram                      │
 monitoring → Telegram (админу) ───────────┘
 ```
 
+При `GRAPH_APPROVAL=true` каждое содержательное изменение графа отдельно подтверждается админом через inline-кнопки ✅/❌ (по таймауту = отклонено).
+
 ## Сервисы
 
 Все три сервиса запускаются одной командой `docker compose up -d`:
 
 | Сервис | Образ | Назначение |
 |---|---|---|
-| `digester` | `Dockerfile` | Пайплайн по crontab (ежедневно 8:00) |
+| `digester` | `Dockerfile` | Пайплайн по crontab (ежедневно 10:00) |
 | `bot` | `Dockerfile` | Telegram bot с long-polling |
 | `ml` | `Dockerfile.ml` | FastAPI + rubert-tiny2 (CPU) |
 
@@ -50,15 +52,16 @@ docker compose up -d           # запуск всех сервисов
 docker compose run --rm digester python -m functions.orchestrator.handler
 ```
 
+При первом старте `entrypoint.sh` выполняет одноразовый полный сброс данных и удаляет сам скрипт.
+
 ## Команды бота
 
 Бот слушает только `TG_ADMIN_ID`:
 
-- `/start` — приветствие
+- `/start`, `/help` — приветствие и справка
 - `/graph` — текущий граф знаний
 - `/digest` — сегодняшний дайджест
-- `/logs` — логи за сегодня
-- `/help` — справка
+- `/logs` — лог-файл бота
 - Любой текст → веб-поиск через Perplexity Sonar + обновление графа
 
 ## Структура репозитория
@@ -72,8 +75,9 @@ functions/
   tg_sender/        — отправка в Telegram + интерактивный бот
 ml_service/         — FastAPI + rubert-tiny2 (семантическая дедупликация)
 shared/             — общие модели, утилиты, клиенты
-graph/              — начальный граф знаний (seed)
-tests/              — тесты (мокируют LLM, не требуют токенов)
+Graph/               — начальный граф знаний (seed)
+scripts/             — служебные скрипты (clean_graph, reset_data, entrypoint)
+tests/               — тесты (мокируют LLM, не требуют токенов)
 ```
 
 ## ML-сервис
@@ -112,11 +116,12 @@ LLM-вызовы мокируются — тесты не требуют ток�
 ## Хранилище
 
 Граф знаний, снапшоты, дайджесты — JSON в `/data`. SQLite БД:
+- `/data/pending/` — ожидающие подтверждения изменения графа (`approval_*.json`)
 - `/data/seen_urls.db` — виденные URL (дедупликация)
 - `/data/news.db` — все собранные новости
 - `/data/history.db` — история диалогов бота
 
-При первом запуске граф создаётся автоматически через `graph/seed.py`.
+При отсутствии графа он создаётся автоматически (`build_initial_graph()`).
 
 ## Переменные окружения
 
@@ -130,8 +135,12 @@ LLM-вызовы мокируются — тесты не требуют ток�
 | `LLM_PRO_MODEL` | нет | Модель генерации (по умолч. `openai/gpt-4o`) |
 | `LLM_FALLBACK_MODEL` | нет | Fallback (по умолч. `qwen/qwen2.5-72b-instruct`) |
 | `USE_LLM` | нет | Включить LLM-анализ (`true`/`false`) |
+| `GRAPH_APPROVAL` | нет | Ручное подтверждение изменений графа (по умолч. `true`) |
+| `GRAPH_APPROVAL_TIMEOUT` | нет | Таймаут подтверждения в сек (3600; по таймауту = отклонено) |
 | `FRESHNESS_HOURS` | нет | Свежесть новостей в часах (24) |
 | `MAX_NEWS_IN_DIGEST` | нет | Максимум новостей в дайджесте (20) |
+| `YANDEX_SEARCH_USER` | нет | Логин Yandex Search API (источник новостей) |
+| `YANDEX_SEARCH_KEY` | нет | Ключ Yandex Search API |
 | `ML_URL` | нет | URL ML-сервиса (`http://ml:8001`, пусто → ML отключён) |
 | `DEDUP_THRESHOLD` | нет | Порог дедупликации (0.92) |
 | `RELEVANCE_THRESHOLD` | нет | Порог релевантности (0.65) |

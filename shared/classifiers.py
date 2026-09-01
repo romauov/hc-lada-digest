@@ -10,7 +10,6 @@ from shared.tg_format import extract_message
 logger = logging.getLogger(__name__)
 
 MODEL_LITE = os.environ.get("LLM_LITE_MODEL", "openai/gpt-4o-mini")
-YC_MODEL_LITE = os.environ.get("YC_MODEL_LITE", "yandexgpt-5-lite")
 
 CLASSIFY_SYSTEM = (
     "Ты — классификатор для бота ХК Лада (хоккейный клуб, КХЛ).\n"
@@ -87,7 +86,7 @@ def classify_need_search(question: str, history: str, entities: Optional[dict] =
     if entities:
         known = "\n".join(f"- {e.name} ({e.type})" for e in entities.values())
         prompt = f"Сущности в графе:\n{known}\n\n{prompt}"
-    result = _call_llm(CLASSIFY_SYSTEM, prompt, model=MODEL_LITE, temperature=0.0, max_tokens=5, yc_model=YC_MODEL_LITE)
+    result = _call_llm(CLASSIFY_SYSTEM, prompt, model=MODEL_LITE, temperature=0.0, max_tokens=5)
     if result:
         result = extract_message(result)
     logger.info("classify_need_search(%s): %s", question[:60], result)
@@ -102,5 +101,5 @@ def extract_from_bot_answer(question: str, answer: str, graph_json: dict) -> Opt
         for e in graph_json.get("entities", {}).values()
     )
     prompt = f"Известные сущности в графе:\n{known}\n\nВопрос: {question}\nОтвет бота: {answer}"
-    result = _call_llm(BOT_EXTRACT_SYSTEM, prompt, model=MODEL_LITE, temperature=0.1, max_tokens=1000, yc_model=YC_MODEL_LITE)
+    result = _call_llm(BOT_EXTRACT_SYSTEM, prompt, model=MODEL_LITE, temperature=0.1, max_tokens=1000)
     return _parse_llm_json(result) if result else None

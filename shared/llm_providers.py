@@ -1,5 +1,5 @@
 """
-Клиент LLM с 3-tier fallback: OpenRouter → YandexGPT → OpenRouter бесплатные.
+Клиент LLM на OpenRouter с fallback на запасную модель.
 """
 import logging
 import os
@@ -10,7 +10,6 @@ from typing import Optional
 import requests
 
 from shared.monitoring import send_critical_alert
-from shared.llm_yandex import _call_yandex_chat, _call_yandex_search
 from shared.tg_format import extract_message
 
 logger = logging.getLogger(__name__)
@@ -21,11 +20,6 @@ MODEL_LITE   = os.environ.get("LLM_LITE_MODEL",   "openai/gpt-4o-mini")
 MODEL_PRO    = os.environ.get("LLM_PRO_MODEL",    "openai/gpt-4o")
 MODEL_SEARCH = os.environ.get("LLM_SEARCH_MODEL", "perplexity/sonar")
 FALLBACK     = os.environ.get("LLM_FALLBACK_MODEL", "qwen/qwen2.5-72b-instruct")
-
-YC_API_KEY     = os.environ.get("YC_API_KEY", "")
-YC_FOLDER_ID   = os.environ.get("YC_FOLDER_ID", "")
-YC_MODEL_LITE  = os.environ.get("YC_MODEL_LITE", "yandexgpt-5-lite")
-YC_MODEL_PRO   = os.environ.get("YC_MODEL_PRO", "yandexgpt-5.1")
 
 MAX_RETRIES = 3
 RETRY_DELAY = 2
@@ -120,33 +114,20 @@ def _call_llm(
     model: str,
     temperature: float = 0.2,
     max_tokens: int = 2000,
-    yc_model: Optional[str] = None,
-    use_search: bool = False,
 ) -> Optional[str]:
-    """3-tier: OpenRouter → Yandex → OpenRouter free."""
     result = _call_openrouter(system_prompt, user_prompt, model, temperature, max_tokens)
-    if result:
-        return extract_message(result)
-
-    if yc_model and YC_API_KEY and YC_FOLDER_ID:
-        fn = _call_yandex_search if use_search else _call_yandex_chat
-        result = fn(system_prompt, user_prompt, yc_model, YC_FOLDER_ID, YC_API_KEY, temperature, max_tokens)
-        if result:
-            return extract_message(result)
-        send_critical_alert("⚠️ Yandex API недоступен, использован OpenRouter")
-
-    return None
+    return extract_message(result) if result else None
 
 
 def analyze_news(system_prompt: str, user_prompt: str) -> Optional[str]:
     return _call_llm(
-        system_prompt, user_prompt, model=MODEL_LITE, temperature=0.1, yc_model=YC_MODEL_LITE,
+        system_prompt, user_prompt, model=MODEL_LITE, temperature=0.1,
     )
 
 
 def generate_digest(system_prompt: str, user_prompt: str) -> Optional[str]:
     return _call_llm(
-        system_prompt, user_prompt, model=MODEL_PRO, temperature=0.4, max_tokens=3000, yc_model=YC_MODEL_PRO,
+        system_prompt, user_prompt, model=MODEL_PRO, temperature=0.4, max_tokens=3000,
     )
 
 

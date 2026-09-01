@@ -25,7 +25,7 @@ def search_entity_news(entity: Entity) -> list[NewsItem]:
 
 def handler(event: dict, context) -> dict:
     """
-    Yandex Cloud Functions entry point.
+    Cloud Functions entry point.
     event["entity"] — сериализованная сущность (dict)
     """
     entity_data = event.get("entity")

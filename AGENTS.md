@@ -6,7 +6,7 @@
 # установка и первый запуск
 cp .env.example .env   # заполнить OPENROUTER_API_KEY, TG_BOT_TOKEN, TG_CHAT_ID
 docker compose build
-docker compose up -d                                    # запуск (cron ежедневно в 8:00)
+docker compose up -d                                    # запуск (cron ежедневно в 10:00)
 
 # ручной запуск пайплайна
 docker compose run --rm digester python -m functions.orchestrator.handler
@@ -18,10 +18,11 @@ python -m pytest tests/ -v
 
 ## Архитектура
 
-- **OpenRouter** вместо YandexGPT: `shared/openrouter.py` (клиент с runtime fallback).
+- **OpenRouter**: `shared/openrouter.py` (клиент с runtime fallback).
 - **Хранилище** — локальные JSON-файлы в `/data` (Docker volume), а не S3.
 - **5 функций** в `functions/{orchestrator,search_worker,graph_updater,digest_generator,tg_sender}/handler.py`.
-- **Orchestrator** (`functions/orchestrator/handler.py:181`) — единственная точка входа для пайплайна.
+- **Ручное подтверждение графа**: при `GRAPH_APPROVAL=true` каждое содержательное изменение графа отдельно подтверждается админом через Telegram inline-кнопки ✅/❌. Запросы пишутся в `{DATA_DIR}/pending/approval_*.json` (`shared/approval.py`), бот обрабатывает `callback_query`, пайплайн ждёт решения до `GRAPH_APPROVAL_TIMEOUT` (по умолчанию 3600с, по таймауту = отклонено). Применяется только одобренное (`build_approved_graph`). Приоритеты/метки упоминаний отдельные запросы НЕ порождают.
+- **Orchestrator** (`functions/orchestrator/handler.py`) — единственная точка входа для пайплайна. Cron: ежедневно в **10:00**.
 - **Auto-seed**: при отсутствии графа orchestrator сам создаёт начальный через `build_initial_graph()`.
 
 ## Ключевые детали
