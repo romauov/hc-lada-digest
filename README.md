@@ -52,7 +52,7 @@ docker compose up -d           # запуск всех сервисов
 docker compose run --rm digester python -m functions.orchestrator.handler
 ```
 
-При первом старте `entrypoint.sh` выполняет одноразовый полный сброс данных и удаляет сам скрипт.
+Полный сброс данных (БД, граф, логи) выполняется вручную: `docker compose run --rm digester python scripts/reset_data.py`.
 
 ## Команды бота
 
