@@ -12,7 +12,7 @@ from shared.deferred import MIN_NEWS_THRESHOLD, apply_deferred_to_pipeline
 from shared.versioning import save_snapshot, compute_diff
 from shared.approval import (
     build_approved_graph, get_admin_id, itemize_changes,
-    request_all_approvals, STATUS_APPROVED,
+    request_all_approvals, STATUS_APPROVED, STATUS_EXPIRED,
 )
 from shared.monitoring import PipelineMetrics, PipelineRun, send_monitoring_report, send_critical_alert
 from functions.search_worker.handler import search_entity_news
@@ -27,7 +27,8 @@ MAX_NEWS_IN_DIGEST = int(os.environ.get("MAX_NEWS_IN_DIGEST", "20"))
 USE_LLM = os.environ.get("USE_LLM", "true").lower() == "true"
 USE_FACT_CHECK = os.environ.get("USE_FACT_CHECK", "true").lower() == "true"
 GRAPH_APPROVAL = os.environ.get("GRAPH_APPROVAL", "true").lower() == "true"
-GRAPH_APPROVAL_TIMEOUT = int(os.environ.get("GRAPH_APPROVAL_TIMEOUT", "3600"))
+GRAPH_APPROVAL_END_HOUR = int(os.environ.get("GRAPH_APPROVAL_END_HOUR", "18"))
+GRAPH_APPROVAL_REMIND_INTERVAL = int(os.environ.get("GRAPH_APPROVAL_REMIND_INTERVAL", "3600"))
 
 
 def _collect_news(graph, seen: SeenStore):
@@ -156,11 +157,17 @@ def run_pipeline() -> dict:
             if GRAPH_APPROVAL and not diff.is_empty():
                 items = itemize_changes(graph_before, graph)
                 if items:
-                    decisions = request_all_approvals(get_admin_id(), items, GRAPH_APPROVAL_TIMEOUT)
+                    decisions = request_all_approvals(
+                        get_admin_id(), items,
+                        end_hour=GRAPH_APPROVAL_END_HOUR,
+                        remind_interval=GRAPH_APPROVAL_REMIND_INTERVAL,
+                    )
                     approved = sum(1 for d in decisions.values() if d == STATUS_APPROVED)
-                    rejected = len(items) - approved
-                    logger.info("Graph approval results: %d approved, %d rejected", approved, rejected)
-                    metrics.add_warning(f"graph approval: {approved} ok, {rejected} rejected")
+                    rejected = sum(1 for d in decisions.values() if d != STATUS_APPROVED)
+                    expired = sum(1 for d in decisions.values() if d == STATUS_EXPIRED)
+                    logger.info("Graph approval results: %d approved, %d rejected (incl. %d expired)",
+                                approved, rejected, expired)
+                    metrics.add_warning(f"graph approval: {approved} ok, {rejected} rejected ({expired} expired)")
                     graph = build_approved_graph(graph_before, items, decisions)
                     for eid, entity in graph.entities.items():
                         graph.entities[eid] = (

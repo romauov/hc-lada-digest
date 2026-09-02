@@ -15,7 +15,7 @@ import shutil
 
 from shared.models import Entity, KnowledgeGraph, Relation
 from shared.approval import (
-    PENDING_DIR, STATUS_APPROVED, STATUS_REJECTED, STATUS_EXPIRED,
+    PENDING_DIR, STATUS_PENDING, STATUS_APPROVED, STATUS_REJECTED, STATUS_EXPIRED,
     ChangeItem, itemize_changes, build_approved_graph,
     publish_proposal, poll_decision, record_decision, get_proposal,
     request_all_approvals,
@@ -247,13 +247,73 @@ class TestApprovalStore:
             ChangeItem(kind="add_entity", preview="+ A", payload={}),
             ChangeItem(kind="remove_entity", preview="- B", payload={}),
         ]
-        expected = {items[0].id: STATUS_APPROVED, items[1].id: STATUS_REJECTED}
         with patch("shared.approval.send_message", return_value=True) as send_m, \
-             patch("shared.approval.poll_decision", side_effect=lambda pid, t: expected[pid]):
-            decisions = request_all_approvals("123", items, timeout=0.5)
-        # каждое изменение опубликовано отдельным сообщением
+             patch("shared.approval.get_proposal", side_effect=[
+                 {"id": items[0].id, "status": STATUS_APPROVED},
+                 {"id": items[1].id, "status": STATUS_REJECTED},
+             ]), \
+             patch("shared.approval._deadline_ts", return_value=9999999999.0), \
+             patch("shared.approval.time.sleep", return_value=None), \
+             patch("shared.approval.time.time", return_value=100.0):
+            decisions = request_all_approvals("123", items)
+
         assert send_m.call_count == 2
-        assert decisions == expected
+        assert decisions == {
+            items[0].id: STATUS_APPROVED,
+            items[1].id: STATUS_REJECTED,
+        }
+
+    def test_request_all_reminds_pending_after_interval(self):
+        import time as _t
+        items = [
+            ChangeItem(kind="add_entity", preview="+ A", payload={}),
+            ChangeItem(kind="remove_entity", preview="- B", payload={}),
+        ]
+        base = _t.time()
+        state = {"n": 0}
+        decision_seq = iter([
+            {"id": items[0].id, "status": STATUS_PENDING},
+            {"id": items[1].id, "status": STATUS_APPROVED},
+            {"id": items[0].id, "status": STATUS_APPROVED},
+        ])
+
+        def fake_time():
+            state["n"] += 1
+            return base + state["n"] * 2  # каждый вызов +2с
+
+        with patch("shared.approval.send_message", return_value=True) as send_m, \
+             patch("shared.approval.get_proposal", side_effect=lambda pid: next(decision_seq)), \
+             patch("shared.approval._deadline_ts", return_value=base + 7200), \
+             patch("shared.approval.time.time", side_effect=fake_time), \
+             patch("shared.approval.time.sleep", return_value=None):
+            decisions = request_all_approvals("123", items, remind_interval=4)
+
+        assert decisions[items[0].id] == STATUS_APPROVED
+        assert decisions[items[1].id] == STATUS_APPROVED
+        # item0: публикация + напоминание (решён после интервала); item1: только публикация
+        assert send_m.call_count == 3
+
+    def test_request_all_expires_pending_at_deadline(self):
+        import time as _t
+        items = [ChangeItem(kind="add_entity", preview="+ A", payload={})]
+        base = _t.time()
+        state = {"n": 0}
+
+        def fake_time():
+            state["n"] += 1
+            return base + state["n"] * 2
+
+        with patch("shared.approval.send_message", return_value=True) as send_m, \
+             patch("shared.approval._deadline_ts", return_value=base + 60), \
+             patch("shared.approval.get_proposal", side_effect=lambda pid: {
+                 "id": pid, "status": STATUS_PENDING,
+             }), \
+             patch("shared.approval.time.time", side_effect=fake_time), \
+             patch("shared.approval.time.sleep", return_value=None):
+            decisions = request_all_approvals("123", items, remind_interval=3600)
+
+        assert decisions[items[0].id] == STATUS_EXPIRED
+        assert send_m.call_count == 1  # только публикация, напоминание не успело
 
 
 # ── бот: обработка callback_query ────────────────────────────────────────────

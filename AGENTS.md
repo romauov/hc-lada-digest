@@ -6,7 +6,7 @@
 # установка и первый запуск
 cp .env.example .env   # заполнить OPENROUTER_API_KEY, TG_BOT_TOKEN, TG_CHAT_ID
 docker compose build
-docker compose up -d                                    # запуск (cron ежедневно в 10:00)
+docker compose up -d                                    # запуск (cron ежедневно в 9:00)
 
 # ручной запуск пайплайна
 docker compose run --rm digester python -m functions.orchestrator.handler
@@ -21,8 +21,8 @@ python -m pytest tests/ -v
 - **OpenRouter**: `shared/openrouter.py` (клиент с runtime fallback).
 - **Хранилище** — локальные JSON-файлы в `/data` (Docker volume), а не S3.
 - **5 функций** в `functions/{orchestrator,search_worker,graph_updater,digest_generator,tg_sender}/handler.py`.
-- **Ручное подтверждение графа**: при `GRAPH_APPROVAL=true` каждое содержательное изменение графа отдельно подтверждается админом через Telegram inline-кнопки ✅/❌. Запросы пишутся в `{DATA_DIR}/pending/approval_*.json` (`shared/approval.py`), бот обрабатывает `callback_query`, пайплайн ждёт решения до `GRAPH_APPROVAL_TIMEOUT` (по умолчанию 3600с, по таймауту = отклонено). Применяется только одобренное (`build_approved_graph`). Приоритеты/метки упоминаний отдельные запросы НЕ порождают.
-- **Orchestrator** (`functions/orchestrator/handler.py`) — единственная точка входа для пайплайна. Cron: ежедневно в **10:00**.
+- **Ручное подтверждение графа**: при `GRAPH_APPROVAL=true` каждое содержательное изменение графа отдельно подтверждается админом через Telegram inline-кнопки ✅/❌. Запросы пишутся в `{DATA_DIR}/pending/approval_*.json` (`shared/approval.py`), бот обрабатывает `callback_query`. Пайплайн стартует в 9:00 и шлёт нерешённые запросы заново каждые `GRAPH_APPROVAL_REMIND_INTERVAL` (3600с) до часа `GRAPH_APPROVAL_END_HOUR` (18:00), по дедлайну нерешённые = отклонено. Применяется только одобренное (`build_approved_graph`). Приоритеты/метки упоминаний отдельные запросы НЕ порождают.
+- **Orchestrator** (`functions/orchestrator/handler.py`) — единственная точка входа для пайплайна. Cron: ежедневно в **9:00**.
 - **Auto-seed**: при отсутствии графа orchestrator сам создаёт начальный через `build_initial_graph()`.
 
 ## Ключевые детали

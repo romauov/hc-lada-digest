@@ -297,12 +297,7 @@ def publish_proposal(admin_id: str, item: ChangeItem) -> str:
         record_decision(item.id, STATUS_REJECTED)
         return item.id
 
-    reply_markup = {
-        "inline_keyboard": [[
-            {"text": APPROVE_TEXT, "callback_data": f"approve:{item.id}"},
-            {"text": REJECT_TEXT,  "callback_data": f"reject:{item.id}"},
-        ]]
-    }
+    reply_markup = _remind_markup(item)
     header = "🛡 <b>Подтверждение изменения графа</b>\n\n"
     ok = send_message(_bg_token(), admin_id, header + item.preview, reply_markup=reply_markup)
     if not ok:
@@ -327,16 +322,67 @@ def poll_decision(proposal_id: str, timeout: float) -> str:
     return STATUS_EXPIRED
 
 
+def _deadline_ts(end_hour: int, min_wait: float = 60.0) -> float:
+    """Timestamp дедлайна — сегодня в end_hour:00. Если уже позже — через min_wait."""
+    now = time.time()
+    deadline = datetime.now().replace(hour=end_hour, minute=0, second=0, microsecond=0).timestamp()
+    if deadline <= now:
+        deadline = now + min_wait
+    return deadline
+
+
+def _remind_markup(item: ChangeItem) -> dict:
+    return {
+        "inline_keyboard": [[
+            {"text": APPROVE_TEXT, "callback_data": f"approve:{item.id}"},
+            {"text": REJECT_TEXT,  "callback_data": f"reject:{item.id}"},
+        ]]
+    }
+
+
+def remind_proposal(admin_id: str, item: ChangeItem) -> None:
+    """Отправляет новое напоминание по нерешённому изменению (файл не перезаписывает)."""
+    if not admin_id:
+        return
+    header = "🛡 <b>Подтверждение изменения графа</b>\n⏰ <i>Напоминание — ждём вашего решения</i>\n\n"
+    send_message(_bg_token(), admin_id, header + item.preview, reply_markup=_remind_markup(item))
+
+
 def request_all_approvals(
     admin_id: str,
     items: list[ChangeItem],
-    timeout: float,
+    end_hour: int = 18,
+    remind_interval: float = 3600.0,
 ) -> dict[str, str]:
-    """Публикует ВСЕ запросы сразу, затем ждёт решения по каждому."""
+    """
+    Публикует ВСЕ запросы сразу, затем до дедлайна (end_hour:00) раз в remind_interval
+    пересылает напоминания по нерешённым изменениям. По дедлайну нерешённые = expired.
+    """
     published = [(item, publish_proposal(admin_id, item)) for item in items]
-    decisions: dict[str, str] = {}
+    deadline = _deadline_ts(end_hour)
+    next_remind = time.time() + remind_interval
+    decisions: dict[str, str] = {item.id: STATUS_PENDING for item, _ in published}
+
+    while time.time() < deadline:
+        for item, pid in published:
+            if decisions[item.id] != STATUS_PENDING:
+                continue
+            data = get_proposal(pid)
+            if data and data.get("status") in (STATUS_APPROVED, STATUS_REJECTED):
+                decisions[item.id] = data["status"]
+                logger.info("Approval %s [%s]: %s", pid, item.kind, decisions[item.id])
+        if all(s != STATUS_PENDING for s in decisions.values()):
+            break
+        if time.time() >= next_remind:
+            for item, _ in published:
+                if decisions[item.id] == STATUS_PENDING:
+                    remind_proposal(admin_id, item)
+                    logger.info("Reminder sent for %s [%s]", item.id, item.kind)
+            next_remind = time.time() + remind_interval
+        time.sleep(POLL_INTERVAL)
+
     for item, pid in published:
-        decision = poll_decision(pid, timeout)
-        decisions[item.id] = decision
-        logger.info("Approval %s [%s]: %s", pid, item.kind, decision)
+        if decisions[item.id] == STATUS_PENDING:
+            decisions[item.id] = STATUS_EXPIRED
+            logger.info("Approval %s [%s]: %s (deadline)", pid, item.kind, STATUS_EXPIRED)
     return decisions

@@ -9,7 +9,8 @@ services:
       - TZ=Europe/Samara
       - ML_URL=http://ml:8001
       - GRAPH_APPROVAL=${GRAPH_APPROVAL:-true}
-      - GRAPH_APPROVAL_TIMEOUT=${GRAPH_APPROVAL_TIMEOUT:-3600}
+      - GRAPH_APPROVAL_END_HOUR=${GRAPH_APPROVAL_END_HOUR:-18}
+      - GRAPH_APPROVAL_REMIND_INTERVAL=${GRAPH_APPROVAL_REMIND_INTERVAL:-3600}
     restart: unless-stopped
 
   bot:

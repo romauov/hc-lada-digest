@@ -10,7 +10,7 @@
 ## Архитектура
 
 ```
-supercronic (cron 10:00)         Telegram bot (long-polling)
+supercronic (cron 9:00)          Telegram bot (long-polling)
     ↓                                    ↑
 orchestrator — управляет пайплайном       │
     ↓                                     │
@@ -29,7 +29,7 @@ tg_sender → Telegram                      │
 monitoring → Telegram (админу) ───────────┘
 ```
 
-При `GRAPH_APPROVAL=true` каждое содержательное изменение графа отдельно подтверждается админом через inline-кнопки ✅/❌ (по таймауту = отклонено).
+При `GRAPH_APPROVAL=true` каждое содержательное изменение графа отдельно подтверждается админом через inline-кнопки ✅/❌. Пайплайн стартует в 9:00, нерешённые запросы пересылаются каждый час до 18:00, по дедлайну = отклонено.
 
 ## Сервисы
 
@@ -37,7 +37,7 @@ monitoring → Telegram (админу) ───────────┘
 
 | Сервис | Образ | Назначение |
 |---|---|---|
-| `digester` | `Dockerfile` | Пайплайн по crontab (ежедневно 10:00) |
+| `digester` | `Dockerfile` | Пайплайн по crontab (ежедневно 9:00) |
 | `bot` | `Dockerfile` | Telegram bot с long-polling |
 | `ml` | `Dockerfile.ml` | FastAPI + rubert-tiny2 (CPU) |
 
@@ -136,7 +136,8 @@ LLM-вызовы мокируются — тесты не требуют ток�
 | `LLM_FALLBACK_MODEL` | нет | Fallback (по умолч. `qwen/qwen2.5-72b-instruct`) |
 | `USE_LLM` | нет | Включить LLM-анализ (`true`/`false`) |
 | `GRAPH_APPROVAL` | нет | Ручное подтверждение изменений графа (по умолч. `true`) |
-| `GRAPH_APPROVAL_TIMEOUT` | нет | Таймаут подтверждения в сек (3600; по таймауту = отклонено) |
+| `GRAPH_APPROVAL_END_HOUR` | нет | Час дедлайна для подтверждений (18). Старт в 9:00, нерешённые пересылаются раз в час до дедлайна, затем = отклонено |
+| `GRAPH_APPROVAL_REMIND_INTERVAL` | нет | Секунд между напоминаниями (3600) |
 | `FRESHNESS_HOURS` | нет | Свежесть новостей в часах (24) |
 | `MAX_NEWS_IN_DIGEST` | нет | Максимум новостей в дайджесте (20) |
 | `YANDEX_SEARCH_USER` | нет | Логин Yandex Search API (источник новостей) |

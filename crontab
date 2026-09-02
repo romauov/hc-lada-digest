@@ -1,1 +1,1 @@
-0 10 * * * python -m functions.orchestrator.handler
+0 9 * * * python -m functions.orchestrator.handler
